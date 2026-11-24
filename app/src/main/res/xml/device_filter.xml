@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Proxmark3 RRG / Iceman Firmware (9ac4:4b8f = 39620:19343) -->
+    <usb-device vendor-id="39620" product-id="19343" />
+    <!-- Proxmark3 Legacy Firmware (2d2d:504d = 11565:20557) -->
+    <usb-device vendor-id="11565" product-id="20557" />
+    <!-- Atmel SAM-BA Bootloader (03eb:6124 = 1003:24868) -->
+    <usb-device vendor-id="1003" product-id="24868" />
+</resources>
