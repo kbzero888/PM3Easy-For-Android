@@ -89,9 +89,14 @@ jobs:
 
           # 5. Clone & Cross-Compile RfidResearchGroup/proxmark3 Client
           cd "$GITHUB_WORKSPACE"
+          rm -rf pm3-src
           git clone --depth 1 https://github.com/RfidResearchGroup/proxmark3.git pm3-src
-          cd pm3-src/client
+          cd pm3-src
 
+          # 先在根目录按目标平台执行 clean，初始化平台定义缓存
+          make PLATFORM=PM3GENERIC clean
+
+          cd client
           make -j$(nproc) \
             CC="$CC" \
             CXX="$CXX" \
@@ -107,6 +112,7 @@ jobs:
             SKIPLZ4=1 \
             SKIPZSTD=1 \
             SKIPWHEREAMI=1 \
+            SKIPPYTHON=1 \
             CFLAGS="$CFLAGS -D__ANDROID__" \
             CXXFLAGS="$CXXFLAGS -D__ANDROID__" \
             LDFLAGS="$LDFLAGS -Wl,--allow-multiple-definition" \
