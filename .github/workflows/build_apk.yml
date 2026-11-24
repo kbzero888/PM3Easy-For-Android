@@ -53,7 +53,7 @@ jobs:
 
           cd "$GITHUB_WORKSPACE/build-deps"
 
-          # 1. Build bzip2 1.0.8 directly via NDK clang (no Makefile dependency)
+          # 1. Build bzip2 1.0.8 directly via NDK clang
           curl -LO https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz
           tar -xzf bzip2-1.0.8.tar.gz
           cd bzip2-1.0.8
@@ -63,7 +63,16 @@ jobs:
           cp bzlib.h "$PREFIX/include/"
           cd ..
 
-          # 2. Build jansson
+          # 2. Build lz4 (required by cmdhfmfhard.c)
+          git clone --depth 1 https://github.com/lz4/lz4.git
+          cd lz4/lib
+          $CC $CFLAGS -c lz4.c lz4hc.c lz4frame.c xxhash.c
+          $AR rcs "$PREFIX/lib/liblz4.a" lz4.o lz4hc.o lz4frame.o xxhash.o
+          $RANLIB "$PREFIX/lib/liblz4.a"
+          cp lz4.h lz4hc.h lz4frame.h "$PREFIX/include/"
+          cd ../..
+
+          # 3. Build jansson
           git clone --depth 1 https://github.com/akheron/jansson.git
           cd jansson
           autoreconf -fi
@@ -71,7 +80,7 @@ jobs:
           make -j$(nproc) && make install
           cd ..
 
-          # 3. Build ncurses (required by readline)
+          # 4. Build ncurses (required by readline)
           curl -LO https://ftp.gnu.org/gnu/ncurses/ncurses-6.4.tar.gz
           tar -xzf ncurses-6.4.tar.gz
           cd ncurses-6.4
@@ -79,7 +88,7 @@ jobs:
           make -j$(nproc) && make install
           cd ..
 
-          # 4. Build readline
+          # 5. Build readline
           curl -LO https://ftp.gnu.org/gnu/readline/readline-8.2.tar.gz
           tar -xzf readline-8.2.tar.gz
           cd readline-8.2
@@ -87,13 +96,13 @@ jobs:
           make -j$(nproc) SHLIB_LIBS="-ltinfo" && make install
           cd ..
 
-          # 5. Clone & Cross-Compile RfidResearchGroup/proxmark3 Client
+          # 6. Clone & Cross-Compile RfidResearchGroup/proxmark3 Client
           cd "$GITHUB_WORKSPACE"
           rm -rf pm3-src
           git clone --depth 1 https://github.com/RfidResearchGroup/proxmark3.git pm3-src
           cd pm3-src
 
-          # 先在根目录按目标平台执行 clean，初始化平台定义缓存
+          # Initialize platform definition cache at project root before building client
           make PLATFORM=PM3GENERIC clean
 
           cd client
@@ -109,14 +118,13 @@ jobs:
             SKIPBT=1 \
             SKIPPCSC=1 \
             SKIPGD=1 \
-            SKIPLZ4=1 \
             SKIPZSTD=1 \
             SKIPWHEREAMI=1 \
             SKIPPYTHON=1 \
             CFLAGS="$CFLAGS -D__ANDROID__" \
             CXXFLAGS="$CXXFLAGS -D__ANDROID__" \
             LDFLAGS="$LDFLAGS -Wl,--allow-multiple-definition" \
-            LDLIBS="-L$PREFIX/lib -lreadline -ltinfo -ljansson -lbz2 -lm -llog"
+            LDLIBS="-L$PREFIX/lib -lreadline -ltinfo -ljansson -llz4 -lbz2 -lm -llog"
 
           $STRIP proxmark3
 
