@@ -53,12 +53,14 @@ jobs:
 
           cd "$GITHUB_WORKSPACE/build-deps"
 
-          # 1. Build bzip2
-          git clone --depth 1 https://gitlab.com/bzip2/bzip2.git
-          cd bzip2
-          make libbz2.a CC="$CC" AR="$AR" RANLIB="$RANLIB" CFLAGS="$CFLAGS"
+          # 1. Build bzip2 1.0.8 directly via NDK clang (no Makefile dependency)
+          curl -LO https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz
+          tar -xzf bzip2-1.0.8.tar.gz
+          cd bzip2-1.0.8
+          $CC $CFLAGS -c blocksort.c huffman.c crctable.c randtable.c compress.c decompress.c bzlib.c
+          $AR rcs "$PREFIX/lib/libbz2.a" blocksort.o huffman.o crctable.o randtable.o compress.o decompress.o bzlib.o
+          $RANLIB "$PREFIX/lib/libbz2.a"
           cp bzlib.h "$PREFIX/include/"
-          cp libbz2.a "$PREFIX/lib/"
           cd ..
 
           # 2. Build jansson
@@ -98,13 +100,13 @@ jobs:
             RANLIB="$RANLIB" \
             STRIP="$STRIP" \
             PLATFORM=PM3GENERIC \
-            SKIP_QT=1 \
-            SKIP_BT=1 \
-            SKIP_PCSC=1 \
-            SKIP_GD=1 \
-            SKIP_LZ4=1 \
-            SKIP_ZSTD=1 \
-            SKIP_WHEREAMI=1 \
+            SKIPQT=1 \
+            SKIPBT=1 \
+            SKIPPCSC=1 \
+            SKIPGD=1 \
+            SKIPLZ4=1 \
+            SKIPZSTD=1 \
+            SKIPWHEREAMI=1 \
             CFLAGS="$CFLAGS -D__ANDROID__" \
             CXXFLAGS="$CXXFLAGS -D__ANDROID__" \
             LDFLAGS="$LDFLAGS -Wl,--allow-multiple-definition" \
