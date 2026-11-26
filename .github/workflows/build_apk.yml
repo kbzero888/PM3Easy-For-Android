@@ -28,7 +28,7 @@ jobs:
       - name: Install Host Build Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git cmake pkg-config autoconf automake libtool texinfo qemu-user-static
+          sudo apt-get install -y build-essential git cmake pkg-config autoconf automake libtool texinfo qemu-user
 
       - name: Cross-Compile PM3 Dependencies & Iceman Client (arm64-v8a)
         env:
@@ -105,9 +105,10 @@ jobs:
           # Initialize platform definition cache at project root before building client
           make PLATFORM=PM3GENERIC clean
 
-          # Strip -Werror and force aarch64 in hardnested
+          # Strip -Werror, force aarch64 in hardnested, and run ARM64 bmptst via qemu-aarch64
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
+          sed -i 's|\./\$@|qemu-aarch64 ./$@|g' client/deps/reveng/Makefile || true
 
           # Note: Makefile.host invokes $(AR) $@ $^ directly, so AR must include "rcs"
           unset CFLAGS CXXFLAGS LDFLAGS
