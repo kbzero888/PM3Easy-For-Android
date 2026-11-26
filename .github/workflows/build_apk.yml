@@ -105,14 +105,18 @@ jobs:
           # Initialize platform definition cache for PM3 Easy 512KB (PM3GENERIC) with HF_14ASNIFF
           make PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF clean
 
-          # Strip -Werror, force aarch64 in hardnested, and skip host execution of ARM64 bmptst self-test in reveng
+          # Strip -Werror and force aarch64 in hardnested
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
-          sed -i 's|\./\$@|true|g' client/deps/reveng/Makefile || true
+
+          # Build host-native fpga_compress first so armsrc/all can compress FPGA bitstreams on x86_64 runner
+          make -C tools/fpga_compress clean
+          make -C tools/fpga_compress -j$(nproc)
 
           unset CFLAGS CXXFLAGS LDFLAGS
 
           # 6a. Build matching bootrom.elf and fullimage.elf with physical button HF_14ASNIFF standalone mode
+          # Note: fpga_compress was already built for x86_64 host, so make armsrc/all reuses it
           make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all armsrc/all
           mkdir -p "$GITHUB_WORKSPACE/pm3-firmware"
           cp bootrom/obj/bootrom.elf "$GITHUB_WORKSPACE/pm3-firmware/"
@@ -192,8 +196,6 @@ jobs:
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-lz4
             mingw-w64-x86_64-zstd
-            mingw-w64-x86_64-gd
-            mingw-w64-x86_64-bt
 
       - name: Clone & Build Windows CLI (PM3GENERIC + HF_14ASNIFF)
         shell: msys2 {0}
@@ -206,7 +208,7 @@ jobs:
 
           make PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF clean
           cd client
-          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF SKIPQT=1 SKIPPYTHON=1
+          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF SKIPQT=1 SKIPGD=1 SKIPBT=1 SKIPPYTHON=1
 
           mkdir -p /c/pm3-win-cli
           cp proxmark3.exe /c/pm3-win-cli/
