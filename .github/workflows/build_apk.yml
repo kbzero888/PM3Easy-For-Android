@@ -109,22 +109,21 @@ jobs:
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
 
-          # Build host-native fpga_compress by dynamically locating fpga.h (or generating fallback if absent)
+          # Build host-native fpga_compress via system gcc
           FPGA_H_DIR="$(dirname "$(find . -name "fpga.h" | head -n 1)")"
           if [ -z "$FPGA_H_DIR" ] || [ ! -d "$FPGA_H_DIR" ]; then
             mkdir -p /tmp/fpga_inc
-            cat << 'EOF' > /tmp/fpga_inc/fpga.h
-#ifndef __FPGA_H
+            printf '#ifndef __FPGA_H
 #define __FPGA_H
 #include <stdint.h>
 static const uint32_t fpga_versions[] = { 0 };
 static const int fpga_version_count = 0;
 #endif
-EOF
+' > /tmp/fpga_inc/fpga.h
             FPGA_H_DIR="/tmp/fpga_inc"
           fi
 
-          gcc -O2 tools/fpga_compress/fpga_compress.c common/lz4/lz4.c common/lz4/lz4hc.c             -I. -I"$FPGA_H_DIR" -Iinclude -Icommon -Icommon_arm -Iarmsrc -Icommon/lz4 -lm -o /tmp/fpga_compress_host
+          gcc -O2 tools/fpga_compress/fpga_compress.c common/lz4/lz4.c common/lz4/lz4hc.c -I. -I"$FPGA_H_DIR" -Iinclude -Icommon -Icommon_arm -Iarmsrc -Icommon/lz4 -lm -o /tmp/fpga_compress_host
 
           make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all
           cp /tmp/fpga_compress_host tools/fpga_compress/fpga_compress
@@ -140,23 +139,7 @@ EOF
 
           # 6b. Build ARM64 Android client binary
           cd client
-          make -j$(nproc) \
-            CC="$CC -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
-            CXX="$CXX -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
-            LD="$CXX -L$PREFIX/lib -Wl,--allow-multiple-definition" \
-            AR="$AR rcs" \
-            RANLIB="$RANLIB" \
-            STRIP="$STRIP" \
-            PLATFORM=PM3GENERIC \
-            STANDALONE=HF_14ASNIFF \
-            SKIPQT=1 \
-            SKIPBT=1 \
-            SKIPPCSC=1 \
-            SKIPGD=1 \
-            SKIPZSTD=1 \
-            SKIPWHEREAMI=1 \
-            SKIPPYTHON=1 \
-            LDLIBS="-L$PREFIX/lib -lreadline -ltinfo -ljansson -llz4 -lbz2 -lz -lm -llog"
+          make -j$(nproc)             CC="$CC -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__"             CXX="$CXX -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__"             LD="$CXX -L$PREFIX/lib -Wl,--allow-multiple-definition"             AR="$AR rcs"             RANLIB="$RANLIB"             STRIP="$STRIP"             PLATFORM=PM3GENERIC             STANDALONE=HF_14ASNIFF             SKIPQT=1             SKIPBT=1             SKIPPCSC=1             SKIPGD=1             SKIPZSTD=1             SKIPWHEREAMI=1             SKIPPYTHON=1             LDLIBS="-L$PREFIX/lib -lreadline -ltinfo -ljansson -llz4 -lbz2 -lz -lm -llog"
 
           $STRIP proxmark3
 
