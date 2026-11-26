@@ -105,13 +105,15 @@ jobs:
           # Initialize platform definition cache at project root before building client
           make PLATFORM=PM3GENERIC clean
 
-          # Embed custom include/lib flags directly into CC/CXX/LD so GNU Make does NOT override
-          # internal sub-Makefile CFLAGS/CXXFLAGS (which add -I../mbedtls, -I../../src, etc.)
+          # Strip -Werror so NDK Clang 17 strict prototype warnings in readline headers do not fail the build
+          sed -i 's/-Werror//g' client/Makefile Makefile.host || true
+
+          # Use -isystem for third-party sysroot headers and embed flags directly into CC/CXX/LD
           unset CFLAGS CXXFLAGS LDFLAGS
           cd client
           make -j$(nproc) \
-            CC="$CC -O2 -fPIC -I$PREFIX/include -D__ANDROID__" \
-            CXX="$CXX -O2 -fPIC -I$PREFIX/include -D__ANDROID__" \
+            CC="$CC -O2 -fPIC -isystem $PREFIX/include -D__ANDROID__" \
+            CXX="$CXX -O2 -fPIC -isystem $PREFIX/include -D__ANDROID__" \
             LD="$CXX -L$PREFIX/lib -Wl,--allow-multiple-definition" \
             AR="$AR" \
             RANLIB="$RANLIB" \
