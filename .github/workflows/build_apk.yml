@@ -109,17 +109,16 @@ jobs:
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
 
-          # Build host-native fpga_compress via system g++ into a temp binary and place it
-          # into tools/fpga_compress/fpga_compress AFTER make clean so Makefile doesn't wipe it
-          g++ -O2 tools/fpga_compress/fpga_compress.cpp common/lz4/lz4.c common/lz4/lz4hc.c -I. -Icommon/lz4 -o /tmp/fpga_compress_host
-          make PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all
+          # Build host-native fpga_compress via system gcc (.c file, NOT .cpp)
+          gcc -O2 tools/fpga_compress/fpga_compress.c common/lz4/lz4.c common/lz4/lz4hc.c -I. -Icommon/lz4 -lm -o /tmp/fpga_compress_host
+          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all
           cp /tmp/fpga_compress_host tools/fpga_compress/fpga_compress
           chmod +x tools/fpga_compress/fpga_compress
 
           unset CFLAGS CXXFLAGS LDFLAGS
 
-          # 6a. Build matching bootrom.elf and fullimage.elf with physical button HF_14ASNIFF standalone mode
-          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all armsrc/all
+          # 6a. Build matching fullimage.elf with physical button HF_14ASNIFF standalone mode
+          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF armsrc/all
           mkdir -p "$GITHUB_WORKSPACE/pm3-firmware"
           cp bootrom/obj/bootrom.elf "$GITHUB_WORKSPACE/pm3-firmware/"
           cp armsrc/obj/fullimage.elf "$GITHUB_WORKSPACE/pm3-firmware/"
