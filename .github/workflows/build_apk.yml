@@ -111,6 +111,7 @@ jobs:
           sed -i 's|\./\$@|true|g' client/deps/reveng/Makefile || true
 
           # Note: Makefile.host invokes $(AR) $@ $^ directly, so AR must include "rcs"
+          # Include -lz for Android NDK built-in zlib (needed by cmdhfgst.c)
           unset CFLAGS CXXFLAGS LDFLAGS
           cd client
           make -j$(nproc) \
@@ -128,7 +129,7 @@ jobs:
             SKIPZSTD=1 \
             SKIPWHEREAMI=1 \
             SKIPPYTHON=1 \
-            LDLIBS="-L$PREFIX/lib -lreadline -ltinfo -ljansson -llz4 -lbz2 -lm -llog"
+            LDLIBS="-L$PREFIX/lib -lreadline -ltinfo -ljansson -llz4 -lbz2 -lz -lm -llog"
 
           $STRIP proxmark3
 
