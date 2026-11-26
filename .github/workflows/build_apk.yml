@@ -105,17 +105,18 @@ jobs:
           # Initialize platform definition cache at project root before building client
           make PLATFORM=PM3GENERIC clean
 
-          # Strip -Werror so NDK Clang 17 strict prototype warnings in readline headers do not fail the build
-          sed -i 's/-Werror//g' client/Makefile Makefile.host || true
+          # Strip -Werror across all Makefiles and force aarch64 target detection in hardnested
+          find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
+          sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
 
-          # Use -isystem for third-party sysroot headers and embed flags directly into CC/CXX/LD
+          # Note: Makefile.host invokes $(AR) $@ $^ directly, so AR must include "rcs"
           unset CFLAGS CXXFLAGS LDFLAGS
           cd client
           make -j$(nproc) \
-            CC="$CC -O2 -fPIC -isystem $PREFIX/include -D__ANDROID__" \
-            CXX="$CXX -O2 -fPIC -isystem $PREFIX/include -D__ANDROID__" \
+            CC="$CC -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
+            CXX="$CXX -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
             LD="$CXX -L$PREFIX/lib -Wl,--allow-multiple-definition" \
-            AR="$AR" \
+            AR="$AR rcs" \
             RANLIB="$RANLIB" \
             STRIP="$STRIP" \
             PLATFORM=PM3GENERIC \
