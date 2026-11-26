@@ -105,11 +105,14 @@ jobs:
           # Initialize platform definition cache at project root before building client
           make PLATFORM=PM3GENERIC clean
 
+          # Embed custom include/lib flags directly into CC/CXX/LD so GNU Make does NOT override
+          # internal sub-Makefile CFLAGS/CXXFLAGS (which add -I../mbedtls, -I../../src, etc.)
+          unset CFLAGS CXXFLAGS LDFLAGS
           cd client
           make -j$(nproc) \
-            CC="$CC" \
-            CXX="$CXX" \
-            LD="$CXX" \
+            CC="$CC -O2 -fPIC -I$PREFIX/include -D__ANDROID__" \
+            CXX="$CXX -O2 -fPIC -I$PREFIX/include -D__ANDROID__" \
+            LD="$CXX -L$PREFIX/lib -Wl,--allow-multiple-definition" \
             AR="$AR" \
             RANLIB="$RANLIB" \
             STRIP="$STRIP" \
@@ -121,9 +124,6 @@ jobs:
             SKIPZSTD=1 \
             SKIPWHEREAMI=1 \
             SKIPPYTHON=1 \
-            CFLAGS="$CFLAGS -D__ANDROID__" \
-            CXXFLAGS="$CXXFLAGS -D__ANDROID__" \
-            LDFLAGS="$LDFLAGS -Wl,--allow-multiple-definition" \
             LDLIBS="-L$PREFIX/lib -lreadline -ltinfo -ljansson -llz4 -lbz2 -lm -llog"
 
           $STRIP proxmark3
