@@ -109,8 +109,8 @@ jobs:
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
 
-          # Build host-native fpga_compress via system gcc (include armsrc/ for fpga.h)
-          gcc -O2 tools/fpga_compress/fpga_compress.c common/lz4/lz4.c common/lz4/lz4hc.c -I. -Iarmsrc -Icommon/lz4 -lm -o /tmp/fpga_compress_host
+          # Build host-native fpga_compress via system gcc with full include paths (include/common_arm/armsrc)
+          gcc -O2 tools/fpga_compress/fpga_compress.c common/lz4/lz4.c common/lz4/lz4hc.c             -I. -Iinclude -Icommon -Icommon_arm -Iarmsrc -Icommon/lz4 -lm -o /tmp/fpga_compress_host
           make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all
           cp /tmp/fpga_compress_host tools/fpga_compress/fpga_compress
           chmod +x tools/fpga_compress/fpga_compress
