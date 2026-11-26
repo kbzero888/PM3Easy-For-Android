@@ -109,14 +109,13 @@ jobs:
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
 
-          # Build host-native fpga_compress first so armsrc/all can compress FPGA bitstreams on x86_64 runner
-          make -C tools/fpga_compress clean
-          make -C tools/fpga_compress -j$(nproc)
+          # Build host-native fpga_compress directly with system gcc/g++ before touching platform cache
+          g++ -O2 tools/fpga_compress/fpga_compress.cpp common/lz4/lz4.c common/lz4/lz4hc.c -I. -Icommon/lz4 -o tools/fpga_compress/fpga_compress
 
           unset CFLAGS CXXFLAGS LDFLAGS
 
           # 6a. Build matching bootrom.elf and fullimage.elf with physical button HF_14ASNIFF standalone mode
-          # Note: fpga_compress was already built for x86_64 host, so make armsrc/all reuses it
+          # Note: tools/fpga_compress/fpga_compress is already built for x86_64 host
           make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all armsrc/all
           mkdir -p "$GITHUB_WORKSPACE/pm3-firmware"
           cp bootrom/obj/bootrom.elf "$GITHUB_WORKSPACE/pm3-firmware/"
