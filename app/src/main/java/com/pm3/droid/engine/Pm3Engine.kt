@@ -56,13 +56,13 @@ class Pm3Engine(private val context: Context) {
         File(workspaceDir, "dumps").apply { mkdirs() }
     }
 
-    private val ansiRegex = Regex("\u001B\[[;?0-9]*[a-zA-Z]")
-    private val uidRegex = Regex("UID\s*:\s*([0-9A-Fa-f ]{4,32})")
-    private val lfIdRegex = Regex("(?:EM 410x ID|HID Prox TAG ID|ID)\s*:\s*([0-9A-Fa-f]{6,16})")
-    private val atqaRegex = Regex("ATQA\s*:\s*([0-9A-Fa-f ]{4,8})")
-    private val sakRegex = Regex("SAK\s*:\s*([0-9A-Fa-f]{2})")
-    private val hfVoltRegex = Regex("13\.56\s*MHz\s*:\s*([0-9]+\.[0-9]+)\s*V", RegexOption.IGNORE_CASE)
-    private val lfVoltRegex = Regex("125\.00\s*kHz\s*:\s*([0-9]+\.[0-9]+)\s*V", RegexOption.IGNORE_CASE)
+    private val ansiRegex = Regex("""\u001B\[[;?0-9]*[a-zA-Z]""")
+    private val uidRegex = Regex("""UID\s*:\s*([0-9A-Fa-f ]{4,32})""")
+    private val lfIdRegex = Regex("""(?:EM 410x ID|HID Prox TAG ID|ID)\s*:\s*([0-9A-Fa-f]{6,16})""")
+    private val atqaRegex = Regex("""ATQA\s*:\s*([0-9A-Fa-f ]{4,8})""")
+    private val sakRegex = Regex("""SAK\s*:\s*([0-9A-Fa-f]{2})""")
+    private val hfVoltRegex = Regex("""13\.56\s*MHz\s*:\s*([0-9]+\.[0-9]+)\s*V""", RegexOption.IGNORE_CASE)
+    private val lfVoltRegex = Regex("""125\.00\s*kHz\s*:\s*([0-9]+\.[0-9]+)\s*V""", RegexOption.IGNORE_CASE)
 
     private var pendingUid: String? = null
     private var pendingAtqa: String? = null
@@ -200,9 +200,9 @@ class Pm3Engine(private val context: Context) {
             readerJob = scope.launch {
                 try {
                     val reader = BufferedReader(InputStreamReader(process.inputStream))
-                    var line: String?
-                    while (isActive && reader.readLine().also { line = it } != null) {
-                        val cleanLine = line!!.replace(ansiRegex, "").trimEnd()
+                    while (isActive) {
+                        val line = reader.readLine() ?: break
+                        val cleanLine = line.replace(ansiRegex, "").trimEnd()
                         if (cleanLine.isNotBlank()) {
                             parseLineAndUpdateState(cleanLine)
                         }
@@ -257,7 +257,7 @@ class Pm3Engine(private val context: Context) {
             try {
                 appendLog("[!] 发送中断信号 (Ctrl+C)...", LogLevel.WARNING)
                 processWriter?.apply {
-                    write("")
+                    write(3)
                     flush()
                 }
                 delay(300)
@@ -286,8 +286,7 @@ class Pm3Engine(private val context: Context) {
     private fun cleanupProcessOnly() {
         readerJob?.cancel()
         try {
-            processWriter?.write("exit
-")
+            processWriter?.write("exit\n")
             processWriter?.flush()
             processWriter?.close()
         } catch (_: Exception) {
