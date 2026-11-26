@@ -1,4 +1,4 @@
-name: Build PM3Droid APK (ARM64)
+name: Build PM3Droid APK, 512KB Firmware & Windows CLI
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build:
+  build_android_and_firmware:
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -25,12 +25,12 @@ jobs:
         with:
           packages: 'ndk;26.3.11579264 platforms;android-34 build-tools;34.0.0'
 
-      - name: Install Host Build Tools
+      - name: Install Host & ARM Embedded Build Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git cmake pkg-config autoconf automake libtool texinfo
+          sudo apt-get install -y build-essential git cmake pkg-config autoconf automake libtool texinfo gcc-arm-none-eabi binutils-arm-none-eabi
 
-      - name: Cross-Compile PM3 Dependencies & Iceman Client (arm64-v8a)
+      - name: Cross-Compile PM3 Client (arm64-v8a) & 512KB Firmware (HF_14ASNIFF)
         env:
           NDK_ROOT: ${{ env.ANDROID_HOME }}/ndk/26.3.11579264
           API: 26
@@ -96,23 +96,29 @@ jobs:
           make -j$(nproc) SHLIB_LIBS="-ltinfo" && make install
           cd ..
 
-          # 6. Clone & Cross-Compile RfidResearchGroup/proxmark3 Client
+          # 6. Clone & Cross-Compile RfidResearchGroup/proxmark3 Client & Firmware
           cd "$GITHUB_WORKSPACE"
           rm -rf pm3-src
           git clone --depth 1 https://github.com/RfidResearchGroup/proxmark3.git pm3-src
           cd pm3-src
 
-          # Initialize platform definition cache at project root before building client
-          make PLATFORM=PM3GENERIC clean
+          # Initialize platform definition cache for PM3 Easy 512KB (PM3GENERIC) with HF_14ASNIFF
+          make PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF clean
 
           # Strip -Werror, force aarch64 in hardnested, and skip host execution of ARM64 bmptst self-test in reveng
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
           sed -i 's|\./\$@|true|g' client/deps/reveng/Makefile || true
 
-          # Note: Makefile.host invokes $(AR) $@ $^ directly, so AR must include "rcs"
-          # Include -lz for Android NDK built-in zlib (needed by cmdhfgst.c)
           unset CFLAGS CXXFLAGS LDFLAGS
+
+          # 6a. Build matching bootrom.elf and fullimage.elf with physical button HF_14ASNIFF standalone mode
+          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all armsrc/all
+          mkdir -p "$GITHUB_WORKSPACE/pm3-firmware"
+          cp bootrom/obj/bootrom.elf "$GITHUB_WORKSPACE/pm3-firmware/"
+          cp armsrc/obj/fullimage.elf "$GITHUB_WORKSPACE/pm3-firmware/"
+
+          # 6b. Build ARM64 Android client binary
           cd client
           make -j$(nproc) \
             CC="$CC -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
@@ -122,6 +128,7 @@ jobs:
             RANLIB="$RANLIB" \
             STRIP="$STRIP" \
             PLATFORM=PM3GENERIC \
+            STANDALONE=HF_14ASNIFF \
             SKIPQT=1 \
             SKIPBT=1 \
             SKIPPCSC=1 \
@@ -149,9 +156,71 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Rename and Upload APK Artifact
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: PM3Droid-arm64-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Upload Matching PM3 Easy 512KB Firmware Artifact (HF_14ASNIFF)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PM3Easy-512KB-firmware-HF_14ASNIFF
+          path: |
+            pm3-firmware/bootrom.elf
+            pm3-firmware/fullimage.elf
+          retention-days: 30
+
+  build_windows_cli:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Setup MSYS2 Mingw64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-readline
+            mingw-w64-x86_64-jansson
+            mingw-w64-x86_64-bzip2
+            mingw-w64-x86_64-lz4
+            mingw-w64-x86_64-zstd
+            mingw-w64-x86_64-gd
+            mingw-w64-x86_64-bt
+
+      - name: Clone & Build Windows CLI (PM3GENERIC + HF_14ASNIFF)
+        shell: msys2 {0}
+        run: |
+          set -e
+          mkdir -p /c/pm3-build && cd /c/pm3-build
+          rm -rf pm3-src
+          git clone --depth 1 https://github.com/RfidResearchGroup/proxmark3.git pm3-src
+          cd pm3-src
+
+          make PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF clean
+          cd client
+          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF SKIPQT=1 SKIPPYTHON=1
+
+          mkdir -p /c/pm3-win-cli
+          cp proxmark3.exe /c/pm3-win-cli/
+          cp -r dictionaries /c/pm3-win-cli/ || true
+          cp -r lualibs /c/pm3-win-cli/ || true
+
+          # Copy dependent MinGW64 DLLs so proxmark3.exe runs standalone
+          ldd proxmark3.exe | awk '/=> \/mingw64\// {print $3}' | sort -u | while read -r dll; do
+            cp "$dll" /c/pm3-win-cli/ || true
+          done
+
+      - name: Upload Windows CLI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PM3Easy-Windows-CLI
+          path: C:/pm3-win-cli/**
           retention-days: 30
