@@ -41,12 +41,19 @@ jobs:
           PREFIX="$GITHUB_WORKSPACE/sysroot-arm64"
           mkdir -p "$PREFIX/include" "$PREFIX/lib" "$GITHUB_WORKSPACE/build-deps"
 
-          export AR="$TOOLCHAIN/bin/llvm-ar"
-          export CC="$TOOLCHAIN/bin/${TARGET}${API}-clang"
-          export CXX="$TOOLCHAIN/bin/${TARGET}${API}-clang++"
-          export LD="$TOOLCHAIN/bin/ld"
-          export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
-          export STRIP="$TOOLCHAIN/bin/llvm-strip"
+          NDK_AR="$TOOLCHAIN/bin/llvm-ar"
+          NDK_CC="$TOOLCHAIN/bin/${TARGET}${API}-clang"
+          NDK_CXX="$TOOLCHAIN/bin/${TARGET}${API}-clang++"
+          NDK_LD="$TOOLCHAIN/bin/ld"
+          NDK_RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
+          NDK_STRIP="$TOOLCHAIN/bin/llvm-strip"
+
+          export AR="$NDK_AR"
+          export CC="$NDK_CC"
+          export CXX="$NDK_CXX"
+          export LD="$NDK_LD"
+          export RANLIB="$NDK_RANLIB"
+          export STRIP="$NDK_STRIP"
           export CFLAGS="-O2 -fPIC -I$PREFIX/include"
           export CXXFLAGS="-O2 -fPIC -I$PREFIX/include"
           export LDFLAGS="-L$PREFIX/lib"
@@ -96,6 +103,9 @@ jobs:
           make -j$(nproc) SHLIB_LIBS="-ltinfo" && make install
           cd ..
 
+          # Restore host compiler environment so fpga_compress compiles natively for x86_64
+          unset AR CC CXX LD RANLIB STRIP CFLAGS CXXFLAGS LDFLAGS
+
           # 6. Clone & Cross-Compile RfidResearchGroup/proxmark3 Client & Firmware
           cd "$GITHUB_WORKSPACE"
           rm -rf pm3-src
@@ -109,25 +119,8 @@ jobs:
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
 
-          # Build host-native fpga_compress via system gcc
-          FPGA_H_DIR="$(dirname "$(find . -name "fpga.h" | head -n 1)")"
-          if [ -z "$FPGA_H_DIR" ] || [ ! -d "$FPGA_H_DIR" ]; then
-            mkdir -p /tmp/fpga_inc
-            printf '%s\n' '#ifndef __FPGA_H' '#define __FPGA_H' '#include <stdint.h>' 'static const uint32_t fpga_versions[] = { 0 };' 'static const int fpga_version_count = 0;' '#endif' > /tmp/fpga_inc/fpga.h
-            FPGA_H_DIR="/tmp/fpga_inc"
-          fi
-
-          gcc -O2 tools/fpga_compress/fpga_compress.c common/lz4/lz4.c common/lz4/lz4hc.c \
-            -I. -I"$FPGA_H_DIR" -Iinclude -Icommon -Icommon_arm -Iarmsrc -Icommon/lz4 -lm -o /tmp/fpga_compress_host
-
-          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all
-          cp /tmp/fpga_compress_host tools/fpga_compress/fpga_compress
-          chmod +x tools/fpga_compress/fpga_compress
-
-          unset CFLAGS CXXFLAGS LDFLAGS
-
-          # 6a. Build matching fullimage.elf with physical button HF_14ASNIFF standalone mode
-          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF armsrc/all
+          # 6a. Build matching bootrom.elf and fullimage.elf with physical button HF_14ASNIFF standalone mode
+          make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all armsrc/all
           mkdir -p "$GITHUB_WORKSPACE/pm3-firmware"
           cp bootrom/obj/bootrom.elf "$GITHUB_WORKSPACE/pm3-firmware/"
           cp armsrc/obj/fullimage.elf "$GITHUB_WORKSPACE/pm3-firmware/"
@@ -135,12 +128,12 @@ jobs:
           # 6b. Build ARM64 Android client binary
           cd client
           make -j$(nproc) \
-            CC="$CC -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
-            CXX="$CXX -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
-            LD="$CXX -L$PREFIX/lib -Wl,--allow-multiple-definition" \
-            AR="$AR rcs" \
-            RANLIB="$RANLIB" \
-            STRIP="$STRIP" \
+            CC="$NDK_CC -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
+            CXX="$NDK_CXX -O2 -fPIC -isystem $PREFIX/include -Wno-unused-command-line-argument -D__ANDROID__" \
+            LD="$NDK_CXX -L$PREFIX/lib -Wl,--allow-multiple-definition" \
+            AR="$NDK_AR rcs" \
+            RANLIB="$NDK_RANLIB" \
+            STRIP="$NDK_STRIP" \
             PLATFORM=PM3GENERIC \
             STANDALONE=HF_14ASNIFF \
             SKIPQT=1 \
@@ -152,7 +145,7 @@ jobs:
             SKIPPYTHON=1 \
             LDLIBS="-L$PREFIX/lib -lreadline -ltinfo -ljansson -llz4 -lbz2 -lz -lm -llog"
 
-          $STRIP proxmark3
+          $NDK_STRIP proxmark3
 
           # Package binary as libproxmark3.so inside jniLibs so Android extracts it with +x permission
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
