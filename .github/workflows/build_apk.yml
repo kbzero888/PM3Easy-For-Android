@@ -115,9 +115,10 @@ jobs:
           # Initialize platform definition cache for PM3 Easy 512KB (PM3GENERIC) with HF_14ASNIFF
           make PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF clean
 
-          # Strip -Werror and force aarch64 in hardnested
+          # Strip -Werror, force aarch64 in hardnested, and skip host execution of ARM64 bmptst self-test in reveng
           find . -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           sed -i 's/uname -m/echo aarch64/g' client/deps/hardnested/Makefile || true
+          sed -i 's|\./\$@|true|g' client/deps/reveng/Makefile || true
 
           # 6a. Build matching bootrom.elf and fullimage.elf with physical button HF_14ASNIFF standalone mode
           make -j$(nproc) PLATFORM=PM3GENERIC STANDALONE=HF_14ASNIFF bootrom/all armsrc/all
